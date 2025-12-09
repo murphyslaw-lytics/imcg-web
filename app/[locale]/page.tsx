@@ -9,6 +9,7 @@ import { isDataInLiveEdit, setDataForChromeExtension } from '@/utils'
 import { featuredArticlesReferenceIncludes, imageCardsReferenceIncludes, teaserReferenceIncludes, textAndImageReferenceIncludes, textJSONRtePaths } from '@/services/helper'
 import { getEntryByUrl } from '@/services'
 import { usePersonalization } from '@/context'
+import { getDailyNewsArticles } from '@/services/contentstack';
 
 /**
  * @component Home 
@@ -45,6 +46,15 @@ export default function Home () {
             ]
             const res = await getEntryByUrl<Page.Homepage['entry']>('home_page', locale, path , refUids, jsonRTEPaths, personalizationSDK) as Page.LandingPage['entry']
             setData(res)
+            // Detect News Section block on home page
+const hasNewsSection = res?.components?.some(
+  (block: any) => block.news_section
+);
+
+if (hasNewsSection) {
+  const newsItems = await getDailyNewsArticles();
+  res.news = newsItems;
+}
             setDataForChromeExtension({ entryUid: res?.uid ?? '', contenttype: 'home_page', locale: locale })
             if (!res) {
                 throw '404'
@@ -67,13 +77,13 @@ export default function Home () {
             {data
                 ? <PageWrapper {...data}>
                     {data?.components
-                        ? <RenderComponents $={data?.$}
-                            components={[
-                                // eslint-disable-next-line no-unsafe-optional-chaining
-                                ...data?.components
-                            ]}
-                            featured_articles={data?.featured_articles}
-                        /> : ''}
+                        ? <RenderComponents
+  $={data?.$}
+  components={data?.components}
+  featured_articles={data?.featured_articles}
+  news={data?.news ?? []}   // ⭐ USE data, NOT res
+/>
+ : ''}
                 </PageWrapper>
                 : <>
                     {!loading && !isDataInLiveEdit() && <NotFoundComponent />}

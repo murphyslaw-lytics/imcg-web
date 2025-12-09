@@ -5,6 +5,18 @@ import { EmbeddedItem } from '@contentstack/utils/dist/types/Models/embedded-obj
 import { Sdk } from '@contentstack/personalize-edge-sdk/dist/sdk'
 import { isEditButtonsEnabled, Stack } from '@/config'
 import { deserializeVariantIds } from '@/utils'
+import { Stack } from "./stack"; // your existing Stack init
+
+export async function getDailyNewsArticles() {
+  const Query = Stack.ContentType("daily_news_article").Query();
+
+  const data = await Query
+    .includeReference([])
+    .toJSON()
+    .find();
+
+  return data[0] ?? [];
+}
 
 /**
   *

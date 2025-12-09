@@ -12,6 +12,7 @@ import { setDataForChromeExtension } from '@/utils'
 import { imageCardsReferenceIncludes, teaserReferenceIncludes, textAndImageReferenceIncludes, textJSONRtePaths } from '@/services/helper'
 import { getEntryByUrl } from '@/services'
 import { usePersonalization } from '@/context'
+import { getDailyNewsArticles } from '@/services/contentstack'
 
 /**
  * @component LandingPage - Slug Based
@@ -57,8 +58,27 @@ export default function LandingPage () {
                 const jsonRtePaths = [
                     ...textJSONRtePaths
                 ]
-                const res = await getEntryByUrl<Page.LandingPage['entry']>('landing_page',locale, path, refUids, jsonRtePaths, personalizationSDK) as Page.LandingPage['entry']
-                setData(res)
+                const res = await getEntryByUrl<Page.LandingPage['entry']>(
+  'landing_page',
+  locale,
+  path,
+  refUids,
+  jsonRtePaths,
+  personalizationSDK
+);
+
+setData(res);
+
+// ⭐ Detect news section
+const hasNewsSection = res?.components?.some(
+  (block: any) => block.news_section
+);
+
+if (hasNewsSection) {
+  const newsItems = await getDailyNewsArticles();
+  res.news = newsItems; // attach to entry
+}
+
                 setDataForChromeExtension({ entryUid: res?.uid || '', contenttype: 'landing_page', locale: locale })
                 if (!res && !isNull(res)) {
                     throw '404'
@@ -77,10 +97,11 @@ export default function LandingPage () {
         {data
             ? <PageWrapper {...data}>
                 {data?.components
-                    ? <RenderComponents $={data?.$}
-                        components={data?.components}
-                        isABEnabled={isABTestEnabled}
-                    /> : ''}
+                    ? <RenderComponents
+  components={data?.components}
+  news={data?.news ?? []}
+  isABTestEnabled={isAbTestEnabled}
+/> : ''}
             </PageWrapper>
             : <>
                 {!loading && !isDataInLiveEdit() && <NotFoundComponent />}

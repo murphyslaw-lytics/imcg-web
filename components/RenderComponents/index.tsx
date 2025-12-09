@@ -3,6 +3,7 @@ import { CardCollection, FeaturedArticles, Teaser, Text, TextAndImage } from '@/
 import { Page } from '@/types'
 import { pageBlocks } from '@/types/pages'
 import { isDataInLiveEdit } from '@/utils'
+import NewsSection from '../NewsSection'
 
 /**
  * Renders different components based on the provided page data
@@ -14,7 +15,7 @@ import { isDataInLiveEdit } from '@/utils'
  * @returns {JSX.Element} Rendered components
  */
 
-function RenderComponents ({ components, featured_articles, $, isABEnabled = false }: Page.pageRenderProps) {
+function RenderComponents({ components, featured_articles, news = [], $, isABEnabled = false }: Page.pageRenderProps & { news?: any[] }) {
 
     const componentMapper = (component: pageBlocks, key: number) => {
 
@@ -59,6 +60,14 @@ function RenderComponents ({ components, featured_articles, $, isABEnabled = fal
                 />
 
             )
+case (!!component.news_section):
+  return (
+    <NewsSection
+      id={`news-section-${key}`}
+      items={news}
+      {...component.news_section}
+    />
+  );
 
         default:
             return null
