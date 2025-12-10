@@ -70,13 +70,20 @@ const componentMapper = (component: PageBlocksWithNews, key: number) => {
                 />
 
             )
-case (!!component.news_section):
-  return (
-    <NewsSection
-      id={`news-section-${key}`}
-      items={news}
-      {...component.news_section}
-    />
+        case (!!component.news_section):
+            return (
+                
+                <NewsSection
+                    id={`news-section-${key}`}
+                    items={news}
+                    {...component.news_section}
+                export interface NewsSectionProps {
+                    id?: string;         // ← required to fix Launch error
+                    items: any[];
+                    enabled?: boolean;
+                    _metadata?: any;
+                    }
+                />
   );
 
         default:
