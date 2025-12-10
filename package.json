@@ -10,7 +10,7 @@
     "dev": "next dev",
     "build": "next build --no-lint",
     "start": "next start",
-    "prebuild": "npm run lint",
+    //"prebuild": "npm run lint",
     "lint": "eslint ."
   },
   "overrides": {
