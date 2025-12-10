@@ -11,6 +11,10 @@ import { getEntryByUrl } from '@/services'
 import { usePersonalization } from '@/context'
 import { getDailyNewsArticles } from '@/services/contentstack';
 
+export const dynamic = "force-dynamic";
+// or if needed:
+// export const fetchCache = "force-no-store";
+
 /**
  * @component Home 
  * 
