@@ -92,17 +92,22 @@ export default function Home () {
         onEntryChange(fetchData)
     }, [])
 
-    return (
-        <>
-            {data
-                ? <PageWrapper {...data}>
-                    {data?.components
-                        ? <RenderComponents
-  $={data?.$}
-  components={data?.components}
-  featured_articles={data?.featured_articles}
-  news={data?.news ?? []}   // ⭐ USE data, NOT res
-/>
+return (
+  console.log("PAGE RENDERED, DATA:", data),
+  <div>
+    {data && (
+      <PageWrapper {...data}>
+        <RenderComponents
+          {...data.$}
+          components={data?.components}
+          featured_articles={data?.featured_articles}
+          news={data?.news ?? []}
+        />
+      </PageWrapper>
+    )}
+  </div>
+);
+
  : ''}
                 </PageWrapper>
                 : <>
