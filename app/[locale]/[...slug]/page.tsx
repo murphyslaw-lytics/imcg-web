@@ -17,19 +17,24 @@ import { getEntryByUrl } from '@/services';
 import { usePersonalization } from '@/context';
 import { getDailyNewsArticles } from '@/services/contentstack';
 
-// ✅ MUST be top-level type (not inside the component)
+// -----------------------------------------------------------
+// Local type for extended entry with news
+// -----------------------------------------------------------
 type LandingPageWithNews = Page.LandingPage['entry'] & {
   news?: any[];
 };
 
 export default function LandingPage() {
   const [data, setData] = useState<LandingPageWithNews | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
 
-  // MUST come before fetchData()
+  // Hooks MUST be declared before fetchData
   const { path, locale } = useRouterHook();
   const { personalizationSDK } = usePersonalization();
 
+  // -----------------------------------------------------------
+  // Fetch Data
+  // -----------------------------------------------------------
   const fetchData = async () => {
     try {
       const refUids = [
@@ -49,11 +54,9 @@ export default function LandingPage() {
         personalizationSDK
       )) as LandingPageWithNews | undefined;
 
-      if (!res) {
-        throw new Error('404');
-      }
+      if (!res) throw new Error('404');
 
-      // Detect news section
+      // Detect News Section
       const hasNewsSection = res.components?.some(
         (block: any) => block.news_section
       );
@@ -65,6 +68,7 @@ export default function LandingPage() {
 
       setData(res);
 
+      // Chrome Extension Support
       setDataForChromeExtension({
         entryUid: res.uid ?? '',
         contenttype: 'landing_page',
@@ -78,19 +82,26 @@ export default function LandingPage() {
     }
   };
 
+  // -----------------------------------------------------------
+  // Fetch based on entry change
+  // -----------------------------------------------------------
   useEffect(() => {
     onEntryChange(fetchData);
-  }, [path, locale]); // safer dependencies
+  }, [path, locale]);
 
   console.log('📄 SLUG PAGE ROUTE RENDERED');
 
+  // -----------------------------------------------------------
+  // Render
+  // -----------------------------------------------------------
   if (loading) return null;
 
   if (!data && !isDataInLiveEdit()) {
     return <NotFoundComponent />;
   }
 
-  // At this point data is guaranteed non-null
+  if (!data) return null;
+
   return (
     <PageWrapper {...data}>
       <RenderComponents
