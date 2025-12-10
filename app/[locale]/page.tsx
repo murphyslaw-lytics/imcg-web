@@ -52,9 +52,13 @@ const hasNewsSection = res?.components?.some(
 );
 
 if (hasNewsSection) {
-  const newsItems = await getDailyNewsArticles();
-  res.news = newsItems;
+    const newsItems = await getDailyNewsArticles();
+    res.news = newsItems;
+
+    // ⭐ THIS IS THE IMPORTANT PART
+    setData({ ...res });
 }
+
             setDataForChromeExtension({ entryUid: res?.uid ?? '', contenttype: 'home_page', locale: locale })
             if (!res) {
                 throw '404'
