@@ -10,14 +10,15 @@ import { deserializeVariantIds } from '@/utils';
    ✅ FIXED: ALWAYS RETURN AN ARRAY OF NEWS ARTICLES
 ----------------------------------------------------------- */
 export async function getDailyNewsArticles() {
-  const Query = Stack.contentType("daily_news_article").entry().query();
+  // Start from entry(), not query()
+  const Query = Stack.contentType("daily_news_article")
+    .entry()
+    .query();
 
-  const data = await Query
-    .includeReference([])
-    .toJSON()
-    .find();
+  // Query().find() already returns JSON — no need for toJSON()
+  const data = await Query.find();
 
-  // result returns: [entries[], schema]
+  // find() returns: [entries[], schema]
   const entries = data?.[0] ?? [];
 
   return Array.isArray(entries) ? entries : [entries];
