@@ -16,6 +16,8 @@ import NewsSection from '../NewsSection'
  */
 
 function RenderComponents({ components, featured_articles, news = [], $, isABEnabled = false }: Page.pageRenderProps & { news?: any[] }) {
+    console.log("RENDER COMPONENTS → news prop:", news);
+    console.log("RENDER COMPONENTS → components:", components);
 
     const componentMapper = (component: pageBlocks, key: number) => {
 
