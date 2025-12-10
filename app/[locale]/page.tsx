@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { RenderComponents, NotFoundComponent, PageWrapper } from '@/components';
+import { RenderComponents, PageWrapper, NotFoundComponent } from '@/components';
 import { Page } from '@/types';
-import { onEntryChange } from '@/config';
 import useRouterHook from '@/hooks/useRouterHook';
-import { isDataInLiveEdit, setDataForChromeExtension } from '@/utils';
+import { onEntryChange } from '@/config';
 import {
   featuredArticlesReferenceIncludes,
   imageCardsReferenceIncludes,
@@ -16,25 +15,25 @@ import {
 import { getEntryByUrl } from '@/services';
 import { usePersonalization } from '@/context';
 import { getDailyNewsArticles } from '@/services/contentstack';
+import { setDataForChromeExtension, isDataInLiveEdit } from '@/utils';
 
-// ---------------------------------------------
-// ✅ Define type OUTSIDE the component
-// ---------------------------------------------
+// -----------------------------
+// Extended homepage type
+// -----------------------------
 type HomePageWithNews = Page.Homepage['entry'] & {
   news?: any[];
 };
 
 export default function HomePage() {
   const [data, setData] = useState<HomePageWithNews | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(true);
 
-  // MUST come before fetchData()
   const { path, locale } = useRouterHook();
   const { personalizationSDK } = usePersonalization();
 
-  // ---------------------------------------------
-  // 🚀 Fetch Homepage Data
-  // ---------------------------------------------
+  // -----------------------------
+  // Fetch homepage data
+  ------------------------------
   const fetchData = async () => {
     try {
       const refUids = [
@@ -44,22 +43,20 @@ export default function HomePage() {
         ...featuredArticlesReferenceIncludes,
       ];
 
-      const jsonRTEPaths = [...textJSONRtePaths];
+      const jsonRtePaths = [...textJSONRtePaths];
 
       let res = (await getEntryByUrl<Page.Homepage['entry']>(
         'home_page',
         locale,
         path,
         refUids,
-        jsonRTEPaths,
+        jsonRtePaths,
         personalizationSDK
       )) as HomePageWithNews | undefined;
 
-      if (!res) {
-        throw new Error('404');
-      }
+      if (!res) throw new Error('404');
 
-      // Detect news section block
+      // Detect News Section
       const hasNewsSection = res.components?.some(
         (block: any) => block.news_section
       );
@@ -69,7 +66,6 @@ export default function HomePage() {
         res = { ...res, news: newsItems };
       }
 
-      // Set final enriched homepage object
       setData(res);
 
       // Chrome extension support
@@ -86,31 +82,26 @@ export default function HomePage() {
     }
   };
 
-  // ---------------------------------------------
-  // 👀 Trigger onEntryChange watcher
-  // ---------------------------------------------
   useEffect(() => {
     onEntryChange(fetchData);
   }, [path, locale]);
 
   console.log('🏠 HOME PAGE ROUTE RENDERED');
 
-  // ---------------------------------------------
-  // 🧹 Loading & 404 handling
-  // ---------------------------------------------
   if (loading) return null;
 
   if (!data && !isDataInLiveEdit()) {
     return <NotFoundComponent />;
   }
 
-  // ---------------------------------------------
-  // 🏁 Render Home Page
-  // ---------------------------------------------
+  if (!data) return null;
+
+  // -----------------------------
+  // Render homepage
+  // -----------------------------
   return (
     <PageWrapper {...data}>
       <RenderComponents
-        {...data.$}
         components={data.components}
         featured_articles={data.featured_articles}
         news={data.news ?? []}
