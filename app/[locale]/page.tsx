@@ -17,23 +17,19 @@ import { usePersonalization } from '@/context';
 import { getDailyNewsArticles } from '@/services/contentstack';
 import { setDataForChromeExtension, isDataInLiveEdit } from '@/utils';
 
-// -----------------------------
-// Extended homepage type
-// -----------------------------
+// Extend the homepage entry type to optionally include news items
 type HomePageWithNews = Page.Homepage['entry'] & {
   news?: any[];
 };
 
-export default function HomePage() {
+export default function Home() {
   const [data, setData] = useState<HomePageWithNews | null>(null);
   const [loading, setLoading] = useState(true);
 
   const { path, locale } = useRouterHook();
   const { personalizationSDK } = usePersonalization();
 
-  // -----------------------------
-  // Fetch homepage data
-  ------------------------------
+  // Fetch homepage entry and optionally attach news
   const fetchData = async () => {
     try {
       const refUids = [
@@ -43,20 +39,22 @@ export default function HomePage() {
         ...featuredArticlesReferenceIncludes,
       ];
 
-      const jsonRtePaths = [...textJSONRtePaths];
+      const jsonRTEPaths = [...textJSONRtePaths];
 
       let res = (await getEntryByUrl<Page.Homepage['entry']>(
         'home_page',
         locale,
         path,
         refUids,
-        jsonRtePaths,
+        jsonRTEPaths,
         personalizationSDK
       )) as HomePageWithNews | undefined;
 
-      if (!res) throw new Error('404');
+      if (!res) {
+        throw new Error('404');
+      }
 
-      // Detect News Section
+      // Check if this page has the News Section block
       const hasNewsSection = res.components?.some(
         (block: any) => block.news_section
       );
@@ -68,7 +66,6 @@ export default function HomePage() {
 
       setData(res);
 
-      // Chrome extension support
       setDataForChromeExtension({
         entryUid: res.uid ?? '',
         contenttype: 'home_page',
@@ -88,17 +85,18 @@ export default function HomePage() {
 
   console.log('🏠 HOME PAGE ROUTE RENDERED');
 
-  if (loading) return null;
+  if (loading) {
+    return null;
+  }
 
   if (!data && !isDataInLiveEdit()) {
     return <NotFoundComponent />;
   }
 
-  if (!data) return null;
+  if (!data) {
+    return null;
+  }
 
-  // -----------------------------
-  // Render homepage
-  // -----------------------------
   return (
     <PageWrapper {...data}>
       <RenderComponents
