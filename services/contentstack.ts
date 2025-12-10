@@ -7,20 +7,21 @@ import { isEditButtonsEnabled, Stack } from '@/config';
 import { deserializeVariantIds } from '@/utils';
 
 /* -----------------------------------------------------------
-   ✅ FIXED: ALWAYS RETURN AN ARRAY OF NEWS ARTICLES
+   ✅ ALWAYS RETURN VALID ARRAY OF NEWS ARTICLES
 ----------------------------------------------------------- */
 export async function getDailyNewsArticles() {
-  const query = Stack
-    .contentType('daily_news_article')
-    .entry()
-    .query();
+  if (!Stack) {
+    console.error("Contentstack stack not initialized.");
+    return [];
+  }
 
-  // In Delivery SDK v4, find() returns an object with `entries`
-  const result = (await query.find()) as { entries?: any[] };
+  const Query = Stack.contentType('daily_news_article').entry().query();
 
-  const entries = result?.entries ?? [];
+  const data = await Query.toJSON().find();
 
-  // Always return an array
+  // find() returns: [entries[], schema]
+  const entries = (data as any)?.[0] ?? [];
+
   return Array.isArray(entries) ? entries : [entries];
 }
 
@@ -37,11 +38,7 @@ export const getEntries = async <T>(
   limit: number = 0
 ) => {
   try {
-    if (!Stack) {
-      throw new Error(
-        'No stack initialization found. Check CS API keys and environment variables.'
-      );
-    }
+    if (!Stack) throw new Error('Stack not initialized.');
 
     const entryQuery = Stack.contentType(contentTypeUid)
       .entry()
@@ -52,19 +49,36 @@ export const getEntries = async <T>(
       .variants(deserializeVariantIds(personalizationSDK))
       .query();
 
+    /* -----------------------------------------------
+       OR QUERY HANDLING — FIXED TYPE FOR containedIn()
+    ------------------------------------------------ */
     if (query?.filterQuery?.length > 0 && query.queryOperator === 'or') {
       const queries = query.filterQuery.map((q: any) => {
         const key = Object.keys(q)[0];
         const value = Object.values(q)[0];
 
-        return typeof value === 'string'
-          ? Stack.contentType(contentTypeUid).entry().query().equalTo(key, value)
-          : Stack.contentType(contentTypeUid).entry().query().containedIn(key, value);
+        if (typeof value === 'string') {
+          return Stack.contentType(contentTypeUid)
+            .entry()
+            .query()
+            .equalTo(key, value);
+        }
+
+        // Ensure value is an array for containedIn()
+        const arr = Array.isArray(value) ? value : [value];
+
+        return Stack.contentType(contentTypeUid)
+          .entry()
+          .query()
+          .containedIn(key, arr as (string | number | boolean)[]);
       });
 
       entryQuery.queryOperator(QueryOperator.OR, ...queries);
     }
 
+    /* -----------------------------------------------
+       SIMPLE equalTo QUERY
+    ------------------------------------------------ */
     if (query?.filterQuery?.key && query?.filterQuery?.value) {
       entryQuery.equalTo(query.filterQuery.key, query.filterQuery.value);
     }
@@ -78,14 +92,11 @@ export const getEntries = async <T>(
 
     const data = result?.entries as EmbeddedItem[];
 
-    if (data && _.isEmpty(data?.[0])) {
-      throw '404 | Not found';
-    }
+    if (data && _.isEmpty(data?.[0])) throw '404 | Not found';
 
+    // Convert RTE JSON and add editable tags
     data.forEach((entry) => {
-      if (jsonRtePath) {
-        jsonToHTML({ entry, paths: jsonRtePath });
-      }
+      if (jsonRtePath) jsonToHTML({ entry, paths: jsonRtePath });
 
       if (isEditButtonsEnabled) {
         addEditableTags(entry, contentTypeUid, true, locale);
@@ -111,11 +122,7 @@ export const getEntryByUrl = async <T>(
   personalizationSDK?: Sdk
 ) => {
   try {
-    if (!Stack) {
-      throw new Error(
-        'No stack initialization found. Check CS API keys and environment variables.'
-      );
-    }
+    if (!Stack) throw new Error('Stack not initialized.');
 
     const entryQuery = Stack.contentType(contentTypeUid)
       .entry()
@@ -125,7 +132,7 @@ export const getEntryByUrl = async <T>(
       .includeReference(referenceFieldPath ?? [])
       .variants(deserializeVariantIds(personalizationSDK));
 
-    // Ensure all reference includes are applied
+    // Ensure reference includes are applied
     referenceFieldPath?.forEach((path) => entryQuery.includeReference(path));
 
     const result = (await entryQuery
@@ -137,14 +144,12 @@ export const getEntryByUrl = async <T>(
 
     const data = result?.entries?.[0] as EmbeddedItem;
 
-    if (!data || _.isEmpty(data)) {
-      throw '404 | Not found';
-    }
+    if (!data || _.isEmpty(data)) throw '404 | Not found';
 
-    if (jsonRtePath) {
-      jsonToHTML({ entry: data, paths: jsonRtePath });
-    }
+    // Convert JSON RTE
+    if (jsonRtePath) jsonToHTML({ entry: data, paths: jsonRtePath });
 
+    // Live Preview tags
     if (isEditButtonsEnabled) {
       addEditableTags(data, contentTypeUid, true, locale);
     }
