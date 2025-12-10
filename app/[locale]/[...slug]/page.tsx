@@ -93,7 +93,8 @@ if (hasNewsSection) {
     }, [path])
 
 
-    return (<>
+    return (
+    console.log("📄 SLUG PAGE ROUTE RENDERED");
         {data
             ? <PageWrapper {...data}>
                 {data?.components

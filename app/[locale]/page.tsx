@@ -93,7 +93,7 @@ export default function Home () {
     }, [])
 
 return (
-  console.log("PAGE RENDERED, DATA:", data),
+console.log("🏠 HOME PAGE ROUTE RENDERED");
   <div>
     {data && (
       <PageWrapper {...data}>
