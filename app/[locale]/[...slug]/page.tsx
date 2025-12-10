@@ -18,57 +18,56 @@ import { usePersonalization } from '@/context';
 import { getDailyNewsArticles } from '@/services/contentstack';
 
 export default function LandingPage() {
-  const [data, setData] = useState<Page.LandingPage['entry'] | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const { path, locale } = useRouterHook();
-  const { personalizationSDK } = usePersonalization();
+type LandingPageWithNews = Page.LandingPage['entry'] & {
+  news?: any[];
+};
 
-  const fetchData = async () => {
-    try {
-      const refUids = [
-        ...textAndImageReferenceIncludes,
-        ...teaserReferenceIncludes,
-        ...imageCardsReferenceIncludes,
-      ];
-      const jsonRTEPaths = [...textJSONRtePaths];
+const [data, setData] = useState<LandingPageWithNews | null>(null);
+const [loading, setLoading] = useState<boolean>(true);
 
-      let res = await getEntryByUrl<Page.LandingPage['entry']>(
-        'landing_page',
-        locale,
-        path,
-        refUids,
-        jsonRTEPaths,
-        personalizationSDK
-      );
+const fetchData = async () => {
+  try {
+    const refUids = [
+      ...textAndImageReferenceIncludes,
+      ...teaserReferenceIncludes,
+      ...imageCardsReferenceIncludes,
+    ];
+    const jsonRTEPaths = [...textJSONRtePaths];
 
-      if (!res) {
-        throw new Error('404');
-      }
+    let res: LandingPageWithNews | null = await getEntryByUrl<Page.LandingPage['entry']>(
+      'landing_page',
+      locale,
+      path,
+      refUids,
+      jsonRTEPaths,
+      personalizationSDK
+    );
 
-      // detect News block
-      const hasNewsSection = res.components?.some(
-        (block: any) => block.news_section
-      );
+    if (!res) throw new Error("404");
 
-      if (hasNewsSection) {
-        const newsItems = await getDailyNewsArticles();
-        res = { ...res, news: newsItems };
-      }
+    const hasNewsSection = res.components?.some(
+      (block: any) => block.news_section
+    );
 
-      setData(res);
-
-      setDataForChromeExtension({
-        entryUid: res.uid ?? '',
-        contenttype: 'landing_page',
-        locale,
-      });
-
-      setLoading(false);
-    } catch (err) {
-      console.error('❌ Landing Page Error:', err);
-      setLoading(false);
+    if (hasNewsSection) {
+      const newsItems = await getDailyNewsArticles();
+      res = { ...(res ?? {}), news: newsItems };
     }
-  };
+
+    setData(res);
+
+    setDataForChromeExtension({
+      entryUid: res.uid ?? '',
+      contenttype: 'landing_page',
+      locale,
+    });
+
+    setLoading(false);
+  } catch (err) {
+    console.error("❌ Landing Page Error:", err);
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     onEntryChange(fetchData);
