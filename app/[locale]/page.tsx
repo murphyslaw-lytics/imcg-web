@@ -1,122 +1,101 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { RenderComponents } from '@/components'
-import { Page } from '@/types'
-import { NotFoundComponent, PageWrapper } from '@/components'
-import { onEntryChange } from '@/config'
-import useRouterHook from '@/hooks/useRouterHook'
-import { isDataInLiveEdit, setDataForChromeExtension } from '@/utils'
-import { featuredArticlesReferenceIncludes, imageCardsReferenceIncludes, teaserReferenceIncludes, textAndImageReferenceIncludes, textJSONRtePaths } from '@/services/helper'
-import { getEntryByUrl } from '@/services'
-import { usePersonalization } from '@/context'
+'use client';
+
+import { useEffect, useState } from 'react';
+import { RenderComponents } from '@/components';
+import { Page } from '@/types';
+import { NotFoundComponent, PageWrapper } from '@/components';
+import { onEntryChange } from '@/config';
+import useRouterHook from '@/hooks/useRouterHook';
+import { isDataInLiveEdit, setDataForChromeExtension } from '@/utils';
+import {
+  featuredArticlesReferenceIncludes,
+  imageCardsReferenceIncludes,
+  teaserReferenceIncludes,
+  textAndImageReferenceIncludes,
+  textJSONRtePaths,
+} from '@/services/helper';
+import { getEntryByUrl } from '@/services';
+import { usePersonalization } from '@/context';
 import { getDailyNewsArticles } from '@/services/contentstack';
 
-export const dynamic = "force-dynamic";
-// or if needed:
-// export const fetchCache = "force-no-store";
+export const dynamic = 'force-dynamic';
 
-/**
- * @component Home 
- * 
- * @route '/{locale}/'
- * @description component that renders the home page of the app
- *  
- * @returns {JSX.Element} The rendered homepage content
- */
-export default function Home () {
+export default function Home() {
+  const [data, setData] = useState<Page.Homepage['entry'] | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const { path, locale } = useRouterHook();
+  const { personalizationSDK } = usePersonalization();
 
-    const [data, setData] = useState<Page.LandingPage['entry'] | null>(null)
-    const [loading, setLoading] = useState<boolean>(true)
-    const { path, locale } = useRouterHook()
-    const {personalizationSDK} = usePersonalization()
+  const fetchData = async () => {
+    try {
+      const refUids = [
+        ...textAndImageReferenceIncludes,
+        ...teaserReferenceIncludes,
+        ...imageCardsReferenceIncludes,
+        ...featuredArticlesReferenceIncludes,
+      ];
 
-    /**
-    * @method fetchData
-    * @description Method that fetches the home page data and populates state with it
-    *
-    * @async
-    * @returns {Promise<void>}
-    */
-    const fetchData = async () => {
-  try {
-    const refUids = [
-      ...textAndImageReferenceIncludes,
-      ...teaserReferenceIncludes,
-      ...imageCardsReferenceIncludes,
-      ...featuredArticlesReferenceIncludes,
-    ];
+      const jsonRTEPaths = [...textJSONRtePaths];
 
-    const jsonRTEPaths = [...textJSONRtePaths];
+      let res = await getEntryByUrl<Page.Homepage['entry']>(
+        'home_page',
+        locale,
+        path,
+        refUids,
+        jsonRTEPaths,
+        personalizationSDK
+      );
 
-    let res = await getEntryByUrl<Page.Homepage['entry']>(
-      'home_page',
-      locale,
-      path,
-      refUids,
-      jsonRTEPaths,
-      personalizationSDK
-    );
+      if (!res) {
+        throw new Error('404');
+      }
 
-    // Initial set – gets all the normal page data
-    setData(res);
+      // Detect News Section block
+      const hasNewsSection = res.components?.some(
+        (block: any) => block.news_section
+      );
 
-    // 🔎 Detect News Section block
-    const hasNewsSection = res.components?.some(
-      (block: any) => block.news_section
-    );
+      if (hasNewsSection) {
+        const newsItems = await getDailyNewsArticles();
+        res = { ...res, news: newsItems };
+      }
 
-    if (hasNewsSection) {
-      const newsItems = await getDailyNewsArticles();
-
-      // ⭐ IMPORTANT: create a new object that includes news
-      res = { ...res, news: newsItems };
-
-      // ⭐ And push that into React state
       setData(res);
+
+      // Chrome extension helper
+      setDataForChromeExtension({
+        entryUid: res.uid ?? '',
+        contenttype: 'home_page',
+        locale,
+      });
+
+      setLoading(false);
+    } catch (err) {
+      console.error('❌ fetchData error:', err);
+      setLoading(false);
     }
-  } catch (err) {
-    console.error('❌ fetchData error:', err);
-    setLoading(false);
+  };
+
+  useEffect(() => {
+    onEntryChange(fetchData);
+  }, []);
+
+  console.log('🏠 HOME PAGE ROUTE RENDERED');
+
+  if (loading) return null;
+
+  if (!data && !isDataInLiveEdit()) {
+    return <NotFoundComponent />;
   }
-};
-            setDataForChromeExtension({ entryUid: res?.uid ?? '', contenttype: 'home_page', locale: locale })
-            if (!res) {
-                throw '404'
-            }
-        } catch (err) {
-            console.error('🚀 ~ fetchData ~ err:', err)
-            setLoading(false)
-        }
-    }
 
-    /**
-     * useEffect to fetch data to be rendered on the page
-     * */ 
-    useEffect(() => {
-        onEntryChange(fetchData)
-    }, [])
-
-return (
-console.log("🏠 HOME PAGE ROUTE RENDERED");
-  <div>
-    {data && (
-      <PageWrapper {...data}>
-        <RenderComponents
-          {...data.$}
-          components={data?.components}
-          featured_articles={data?.featured_articles}
-          news={data?.news ?? []}
-        />
-      </PageWrapper>
-    )}
-  </div>
-);
-
- : ''}
-                </PageWrapper>
-                : <>
-                    {!loading && !isDataInLiveEdit() && <NotFoundComponent />}
-                </>}
-        </>
-    )
+  return (
+    <PageWrapper {...data}>
+      <RenderComponents
+        {...data?.$}
+        components={data?.components}
+        featured_articles={data?.featured_articles}
+        news={data?.news ?? []}
+      />
+    </PageWrapper>
+  );
 }
