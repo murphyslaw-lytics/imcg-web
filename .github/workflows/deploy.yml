@@ -1,0 +1,21 @@
+name: Deploy to Contentstack Launch
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Trigger Launch Deploy Hook
+        env:
+          DEPLOY_HOOK_URL: ${{ secrets.LAUNCH_DEPLOY_HOOK }}
+        run: |
+          echo "Triggering Contentstack Launch deployment..."
+          curl -X POST "$DEPLOY_HOOK_URL"
