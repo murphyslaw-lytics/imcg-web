@@ -34,31 +34,47 @@ export default function Home () {
     * @returns {Promise<void>}
     */
     const fetchData = async () => {
-        try {
-            const refUids = [
-                ...textAndImageReferenceIncludes,
-                ...teaserReferenceIncludes,
-                ...imageCardsReferenceIncludes,
-                ...featuredArticlesReferenceIncludes
-            ]
-            const jsonRTEPaths = [
-                ...textJSONRtePaths
-            ]
-            const res = await getEntryByUrl<Page.Homepage['entry']>('home_page', locale, path , refUids, jsonRTEPaths, personalizationSDK) as Page.LandingPage['entry']
-            setData(res)
-            // Detect News Section block on home page
-const hasNewsSection = res?.components?.some(
-  (block: any) => block.news_section
-);
+  try {
+    const refUids = [
+      ...textAndImageReferenceIncludes,
+      ...teaserReferenceIncludes,
+      ...imageCardsReferenceIncludes,
+      ...featuredArticlesReferenceIncludes,
+    ];
 
-if (hasNewsSection) {
-    const newsItems = await getDailyNewsArticles();
-    res.news = newsItems;
+    const jsonRTEPaths = [...textJSONRtePaths];
 
-    // ⭐ THIS IS THE IMPORTANT PART
-    setData({ ...res });
-}
+    let res = await getEntryByUrl<Page.Homepage['entry']>(
+      'home_page',
+      locale,
+      path,
+      refUids,
+      jsonRTEPaths,
+      personalizationSDK
+    );
 
+    // Initial set – gets all the normal page data
+    setData(res);
+
+    // 🔎 Detect News Section block
+    const hasNewsSection = res.components?.some(
+      (block: any) => block.news_section
+    );
+
+    if (hasNewsSection) {
+      const newsItems = await getDailyNewsArticles();
+
+      // ⭐ IMPORTANT: create a new object that includes news
+      res = { ...res, news: newsItems };
+
+      // ⭐ And push that into React state
+      setData(res);
+    }
+  } catch (err) {
+    console.error('❌ fetchData error:', err);
+    setLoading(false);
+  }
+};
             setDataForChromeExtension({ entryUid: res?.uid ?? '', contenttype: 'home_page', locale: locale })
             if (!res) {
                 throw '404'
