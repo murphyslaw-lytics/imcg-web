@@ -25,6 +25,10 @@ type LandingPageWithNews = Page.LandingPage['entry'] & {
 const [data, setData] = useState<LandingPageWithNews | null>(null);
 const [loading, setLoading] = useState<boolean>(true);
 
+  // ✅ MUST come before fetchData()
+  const { path, locale } = useRouterHook();
+  const { personalizationSDK } = usePersonalization();
+
 const fetchData = async () => {
   try {
     const refUids = [
