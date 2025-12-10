@@ -17,6 +17,10 @@ interface NewsSectionProps {
 }
 
 export default function NewsSection({ items }: NewsSectionProps) {
+
+  // ⭐ ADD THIS LINE HERE
+  console.log('NEWS ITEMS IN COMPONENT:', items);
+
   if (!items || items.length === 0) {
     return null;
   }
