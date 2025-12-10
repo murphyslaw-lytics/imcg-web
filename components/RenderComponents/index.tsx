@@ -5,6 +5,14 @@ import { pageBlocks } from '@/types/pages'
 import { isDataInLiveEdit } from '@/utils'
 import NewsSection from '../NewsSection'
 
+// Extend pageBlocks to include optional news_section block
+type PageBlocksWithNews = pageBlocks & {
+  news_section?: {
+    enabled?: boolean;
+    _metadata?: any;
+  };
+};
+
 /**
  * Renders different components based on the provided page data
  * @param {Object} props - Component properties
@@ -19,7 +27,7 @@ function RenderComponents({ components, featured_articles, news = [], $, isABEna
     console.log("RENDER COMPONENTS → news prop:", news);
     console.log("RENDER COMPONENTS → components:", components);
 
-    const componentMapper = (component: pageBlocks, key: number) => {
+const componentMapper = (component: PageBlocksWithNews, key: number) => {
 
         switch (true) {
 
