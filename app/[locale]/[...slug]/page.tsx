@@ -34,24 +34,27 @@ const fetchData = async () => {
     ];
     const jsonRTEPaths = [...textJSONRtePaths];
 
-    let res: LandingPageWithNews | null = await getEntryByUrl<Page.LandingPage['entry']>(
-      'landing_page',
-      locale,
-      path,
-      refUids,
-      jsonRTEPaths,
-      personalizationSDK
-    );
+    let res = (await getEntryByUrl<Page.LandingPage['entry']>(
+    'landing_page',
+    locale,
+    path,
+    refUids,
+    jsonRTEPaths,
+    personalizationSDK
+    )) as LandingPageWithNews | null;
 
-    if (!res) throw new Error("404");
+    if (!res) {
+    throw new Error("404");
+    }
 
+    // 🔎 Detect News Section block
     const hasNewsSection = res.components?.some(
-      (block: any) => block.news_section
+    (block: any) => block.news_section
     );
 
     if (hasNewsSection) {
-      const newsItems = await getDailyNewsArticles();
-      res = { ...(res ?? {}), news: newsItems };
+    const newsItems = await getDailyNewsArticles();
+    res = { ...res, news: newsItems };
     }
 
     setData(res);
