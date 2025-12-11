@@ -1,77 +1,99 @@
-import { PageWrapper, RenderComponents, NotFoundComponent } from '@/components';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { RenderComponents, NotFoundComponent, PageWrapper } from '@/components';
+import { Page } from '@/types';
+import { onEntryChange } from '@/config';
+import useRouterHook from '@/hooks/useRouterHook';
+import { isDataInLiveEdit, setDataForChromeExtension } from '@/utils';
 import {
-  featuredArticlesReferenceIncludes,
   imageCardsReferenceIncludes,
   teaserReferenceIncludes,
   textAndImageReferenceIncludes,
   textJSONRtePaths,
 } from '@/services/helper';
-import { getDailyNewsArticles, getEntryByUrl } from '@/services/contentstack';
-import { Page } from '@/types';
+import { getEntryByUrl } from '@/services';
+import { usePersonalization } from '@/context';
+import { getDailyNewsArticles } from '@/services/contentstack';
 
-export const dynamic = 'force-dynamic';
-
-type HomeEntryWithNews = Page.Homepage['entry'] & {
+type HomePageWithNews = Page.HomePage['entry'] & {
   news?: any[];
 };
 
-export default async function Home({
+export default function Page({
   params,
 }: {
   params: { locale: string };
 }) {
-  const locale = params.locale;
-  const path = '/'; // homepage URL in Contentstack
+  const { locale } = params;
+  const { path } = useRouterHook(); // homepage path = "/"
+  const { personalizationSDK } = usePersonalization();
 
-  const refUids = [
-    ...textAndImageReferenceIncludes,
-    ...teaserReferenceIncludes,
-    ...imageCardsReferenceIncludes,
-    ...featuredArticlesReferenceIncludes,
-  ];
+  const [data, setData] = useState<HomePageWithNews | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const jsonRTEPaths = [...textJSONRtePaths];
+  const fetchData = async () => {
+    try {
+      const refUids = [
+        ...textAndImageReferenceIncludes,
+        ...teaserReferenceIncludes,
+        ...imageCardsReferenceIncludes,
+      ];
 
-  let entry: HomeEntryWithNews | null = null;
+      const jsonRTEPaths = [...textJSONRtePaths];
 
-  try {
-    entry = (await getEntryByUrl<Page.Homepage['entry']>(
-      'home_page',
-      locale,
-      path,
-      refUids,
-      jsonRTEPaths,
-    )) as HomeEntryWithNews | null;
+      let res = (await getEntryByUrl<Page.HomePage['entry']>(
+        'home_page',
+        locale,
+        '/', // homepage URL
+        refUids,
+        jsonRTEPaths,
+        personalizationSDK
+      )) as HomePageWithNews | undefined;
 
-    if (!entry) {
-      throw new Error('404');
+      if (!res) throw new Error('404');
+
+      // Inject news if homepage has news block
+      const hasNewsSection = res.components?.some(
+        (block: any) => block.news_section
+      );
+
+      if (hasNewsSection) {
+        const newsItems = await getDailyNewsArticles();
+        res = { ...res, news: newsItems };
+      }
+
+      setData(res);
+
+      setDataForChromeExtension({
+        entryUid: res.uid ?? '',
+        contenttype: 'home_page',
+        locale,
+      });
+
+      setLoading(false);
+    } catch (err) {
+      console.error('Home Page Error:', err);
+      setLoading(false);
     }
+  };
 
-    // Detect news section block
-    const hasNewsSection = entry.components?.some(
-      (block: any) => (block as any).news_section,
-    );
+  useEffect(() => {
+    onEntryChange(fetchData);
+  }, [locale]);
 
-    if (hasNewsSection) {
-      const newsItems = await getDailyNewsArticles();
-      entry = { ...entry, news: newsItems };
-    }
-  } catch (err) {
-    console.error('❌ Home page error:', err);
-  }
+  if (loading) return null;
 
-  if (!entry) {
+  if (!data && !isDataInLiveEdit()) {
     return <NotFoundComponent />;
   }
 
   return (
-    <PageWrapper {...entry}>
+    <PageWrapper {...data}>
       <RenderComponents
-        components={entry.components}
-        featured_articles={entry.featured_articles}
-        news={entry.news ?? []}
-        $={entry.$}
-        isABEnabled={false}
+        components={data?.components}
+        featured_articles={(data as any).featured_articles}
+        news={data?.news ?? []}
       />
     </PageWrapper>
   );

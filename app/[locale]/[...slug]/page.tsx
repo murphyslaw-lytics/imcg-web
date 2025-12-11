@@ -1,61 +1,98 @@
-import { notFound } from "next/navigation";
-import { PageWrapper, RenderComponents } from "@/components";
-import { getEntryByUrl } from "@/services";
-import { getDailyNewsArticles } from "@/services/contentstack";
+'use client';
+
+import { useEffect, useState } from 'react';
+import { RenderComponents, NotFoundComponent, PageWrapper } from '@/components';
+import { Page } from '@/types';
+import { onEntryChange } from '@/config';
+import useRouterHook from '@/hooks/useRouterHook';
+import { isDataInLiveEdit, setDataForChromeExtension } from '@/utils';
 import {
   imageCardsReferenceIncludes,
   teaserReferenceIncludes,
   textAndImageReferenceIncludes,
   textJSONRtePaths,
-} from "@/services/helper";
-import { Page } from "@/types";
-import { deserializeVariantIds } from "@/utils";
-import { cookies } from "next/headers";
+} from '@/services/helper';
+import { getEntryByUrl } from '@/services';
+import { usePersonalization } from '@/context';
+import { getDailyNewsArticles } from '@/services/contentstack';
 
-export default async function Page(props: any) {
-  const { locale, slug } = props.params;
+type LandingPageWithNews = Page.LandingPage['entry'] & {
+  news?: any[];
+};
 
-  const path = "/" + slug.join("/");
+export default function Page({
+  params,
+}: {
+  params: { locale: string; slug: string[] };
+}) {
+  const { locale } = params;
+  const { path } = useRouterHook();
+  const { personalizationSDK } = usePersonalization();
 
-  const personalizationCookie = cookies().get("cs_personalize_variants")?.value;
-  const personalizationSDK = personalizationCookie
-    ? { getAppliedVariants: () => deserializeVariantIds(personalizationCookie) }
-    : undefined;
+  const [data, setData] = useState<LandingPageWithNews | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const refUids = [
-    ...textAndImageReferenceIncludes,
-    ...teaserReferenceIncludes,
-    ...imageCardsReferenceIncludes,
-  ];
+  const fetchData = async () => {
+    try {
+      const refUids = [
+        ...textAndImageReferenceIncludes,
+        ...teaserReferenceIncludes,
+        ...imageCardsReferenceIncludes,
+      ];
 
-  const jsonRTEPaths = [...textJSONRtePaths];
+      const jsonRTEPaths = [...textJSONRtePaths];
 
-  let entry: (Page.LandingPage["entry"] & { news?: any[] }) | null = null;
+      let res = (await getEntryByUrl<Page.LandingPage['entry']>(
+        'landing_page',
+        locale,
+        path,
+        refUids,
+        jsonRTEPaths,
+        personalizationSDK
+      )) as LandingPageWithNews | undefined;
 
-  try {
-    entry = (await getEntryByUrl<Page.LandingPage["entry"]>(
-      "landing_page",
-      locale,
-      path,
-      refUids,
-      jsonRTEPaths,
-      personalizationSDK
-    )) as any;
-  } catch (e) {
-    console.error("❌ Failed to load page:", e);
-  }
+      if (!res) throw new Error('404');
 
-  if (!entry) return notFound();
+      const hasNewsSection = res.components?.some(
+        (block: any) => block.news_section
+      );
 
-  const hasNews = entry.components?.some((b: any) => b.news_section);
+      if (hasNewsSection) {
+        const newsItems = await getDailyNewsArticles();
+        res = { ...res, news: newsItems };
+      }
 
-  if (hasNews) {
-    entry.news = await getDailyNewsArticles();
+      setData(res);
+
+      setDataForChromeExtension({
+        entryUid: res.uid ?? '',
+        contenttype: 'landing_page',
+        locale,
+      });
+
+      setLoading(false);
+    } catch (err) {
+      console.error('Slug Page Error:', err);
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    onEntryChange(fetchData);
+  }, [locale, path]);
+
+  if (loading) return null;
+
+  if (!data && !isDataInLiveEdit()) {
+    return <NotFoundComponent />;
   }
 
   return (
-    <PageWrapper {...entry}>
-      <RenderComponents components={entry.components} news={entry.news ?? []} />
+    <PageWrapper {...data}>
+      <RenderComponents
+        components={data?.components}
+        news={data?.news ?? []}
+      />
     </PageWrapper>
   );
 }
