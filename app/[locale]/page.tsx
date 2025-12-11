@@ -1,10 +1,4 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import { RenderComponents, PageWrapper, NotFoundComponent } from '@/components';
-import { Page } from '@/types';
-import useRouterHook from '@/hooks/useRouterHook';
-import { onEntryChange } from '@/config';
+import { PageWrapper, RenderComponents, NotFoundComponent } from '@/components';
 import {
   featuredArticlesReferenceIncludes,
   imageCardsReferenceIncludes,
@@ -12,97 +6,72 @@ import {
   textAndImageReferenceIncludes,
   textJSONRtePaths,
 } from '@/services/helper';
-import { getEntryByUrl } from '@/services';
-import { usePersonalization } from '@/context';
-import { getDailyNewsArticles } from '@/services/contentstack';
-import { setDataForChromeExtension, isDataInLiveEdit } from '@/utils';
+import { getDailyNewsArticles, getEntryByUrl } from '@/services/contentstack';
+import { Page } from '@/types';
 
-// Extend the homepage entry type to optionally include news items
-type HomePageWithNews = Page.Homepage['entry'] & {
+export const dynamic = 'force-dynamic';
+
+type HomeEntryWithNews = Page.Homepage['entry'] & {
   news?: any[];
 };
 
-export default function Home() {
-  const [data, setData] = useState<HomePageWithNews | null>(null);
-  const [loading, setLoading] = useState(true);
+export default async function Home({
+  params,
+}: {
+  params: { locale: string };
+}) {
+  const locale = params.locale;
+  const path = '/'; // homepage URL in Contentstack
 
-  const { path, locale } = useRouterHook();
-  const { personalizationSDK } = usePersonalization();
+  const refUids = [
+    ...textAndImageReferenceIncludes,
+    ...teaserReferenceIncludes,
+    ...imageCardsReferenceIncludes,
+    ...featuredArticlesReferenceIncludes,
+  ];
 
-  // Fetch homepage entry and optionally attach news
-  const fetchData = async () => {
-    try {
-      const refUids = [
-        ...textAndImageReferenceIncludes,
-        ...teaserReferenceIncludes,
-        ...imageCardsReferenceIncludes,
-        ...featuredArticlesReferenceIncludes,
-      ];
+  const jsonRTEPaths = [...textJSONRtePaths];
 
-      const jsonRTEPaths = [...textJSONRtePaths];
+  let entry: HomeEntryWithNews | null = null;
 
-      let res = (await getEntryByUrl<Page.Homepage['entry']>(
-        'home_page',
-        locale,
-        path,
-        refUids,
-        jsonRTEPaths,
-        personalizationSDK
-      )) as HomePageWithNews | undefined;
+  try {
+    entry = (await getEntryByUrl<Page.Homepage['entry']>(
+      'home_page',
+      locale,
+      path,
+      refUids,
+      jsonRTEPaths,
+    )) as HomeEntryWithNews | null;
 
-      if (!res) {
-        throw new Error('404');
-      }
-
-      // Check if this page has the News Section block
-      const hasNewsSection = res.components?.some(
-        (block: any) => block.news_section
-      );
-
-      if (hasNewsSection) {
-        const newsItems = await getDailyNewsArticles();
-        res = { ...res, news: newsItems };
-      }
-
-      setData(res);
-
-      setDataForChromeExtension({
-        entryUid: res.uid ?? '',
-        contenttype: 'home_page',
-        locale,
-      });
-
-      setLoading(false);
-    } catch (err) {
-      console.error('❌ Home Page Error:', err);
-      setLoading(false);
+    if (!entry) {
+      throw new Error('404');
     }
-  };
 
-  useEffect(() => {
-    onEntryChange(fetchData);
-  }, [path, locale]);
+    // Detect news section block
+    const hasNewsSection = entry.components?.some(
+      (block: any) => (block as any).news_section,
+    );
 
-  console.log('🏠 HOME PAGE ROUTE RENDERED');
-
-  if (loading) {
-    return null;
+    if (hasNewsSection) {
+      const newsItems = await getDailyNewsArticles();
+      entry = { ...entry, news: newsItems };
+    }
+  } catch (err) {
+    console.error('❌ Home page error:', err);
   }
 
-  if (!data && !isDataInLiveEdit()) {
+  if (!entry) {
     return <NotFoundComponent />;
   }
 
-  if (!data) {
-    return null;
-  }
-
   return (
-    <PageWrapper {...data}>
+    <PageWrapper {...entry}>
       <RenderComponents
-        components={data.components}
-        featured_articles={data.featured_articles}
-        news={data.news ?? []}
+        components={entry.components}
+        featured_articles={entry.featured_articles}
+        news={entry.news ?? []}
+        $={entry.$}
+        isABEnabled={false}
       />
     </PageWrapper>
   );

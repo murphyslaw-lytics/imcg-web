@@ -1,112 +1,74 @@
-'use client';
-
-import { useEffect, useState } from 'react';
-import Personalize from '@contentstack/personalize-edge-sdk';
-import { RenderComponents, NotFoundComponent, PageWrapper } from '@/components';
-import { Page } from '@/types';
-import { onEntryChange } from '@/config';
-import useRouterHook from '@/hooks/useRouterHook';
-import { isDataInLiveEdit, setDataForChromeExtension } from '@/utils';
+import { PageWrapper, RenderComponents, NotFoundComponent } from '@/components';
 import {
   imageCardsReferenceIncludes,
   teaserReferenceIncludes,
   textAndImageReferenceIncludes,
   textJSONRtePaths,
 } from '@/services/helper';
-import { getEntryByUrl } from '@/services';
-import { usePersonalization } from '@/context';
-import { getDailyNewsArticles } from '@/services/contentstack';
+import { getDailyNewsArticles, getEntryByUrl } from '@/services/contentstack';
+import { Page } from '@/types';
 
-// -----------------------------------------------------------
-// Local type for extended entry with news
-// -----------------------------------------------------------
 type LandingPageWithNews = Page.LandingPage['entry'] & {
   news?: any[];
 };
 
-export default function LandingPage() {
-  const [data, setData] = useState<LandingPageWithNews | null>(null);
-  const [loading, setLoading] = useState(true);
+export const dynamic = 'force-dynamic';
 
-  // Hooks MUST be declared before fetchData
-  const { path, locale } = useRouterHook();
-  const { personalizationSDK } = usePersonalization();
+export default async function LandingPage({
+  params,
+}: {
+  params: { locale: string; slug: string[] };
+}) {
+  const locale = params.locale;
+  const slugSegments = params.slug || [];
+  const path = '/' + slugSegments.join('/');
 
-  // -----------------------------------------------------------
-  // Fetch Data
-  // -----------------------------------------------------------
-  const fetchData = async () => {
-    try {
-      const refUids = [
-        ...textAndImageReferenceIncludes,
-        ...teaserReferenceIncludes,
-        ...imageCardsReferenceIncludes,
-      ];
+  const refUids = [
+    ...textAndImageReferenceIncludes,
+    ...teaserReferenceIncludes,
+    ...imageCardsReferenceIncludes,
+  ];
+  const jsonRTEPaths = [...textJSONRtePaths];
 
-      const jsonRTEPaths = [...textJSONRtePaths];
+  let entry: LandingPageWithNews | null = null;
 
-      let res = (await getEntryByUrl<Page.LandingPage['entry']>(
-        'landing_page',
-        locale,
-        path,
-        refUids,
-        jsonRTEPaths,
-        personalizationSDK
-      )) as LandingPageWithNews | undefined;
+  try {
+    entry = (await getEntryByUrl<Page.LandingPage['entry']>(
+      'landing_page',
+      locale,
+      path,
+      refUids,
+      jsonRTEPaths,
+    )) as LandingPageWithNews | null;
 
-      if (!res) throw new Error('404');
-
-      // Detect News Section
-      const hasNewsSection = res.components?.some(
-        (block: any) => block.news_section
-      );
-
-      if (hasNewsSection) {
-        const newsItems = await getDailyNewsArticles();
-        res = { ...res, news: newsItems };
-      }
-
-      setData(res);
-
-      // Chrome Extension Support
-      setDataForChromeExtension({
-        entryUid: res.uid ?? '',
-        contenttype: 'landing_page',
-        locale,
-      });
-
-      setLoading(false);
-    } catch (err) {
-      console.error('❌ Landing Page Error:', err);
-      setLoading(false);
+    if (!entry) {
+      throw new Error('404');
     }
-  };
 
-  // -----------------------------------------------------------
-  // Fetch based on entry change
-  // -----------------------------------------------------------
-  useEffect(() => {
-    onEntryChange(fetchData);
-  }, [path, locale]);
+    const hasNewsSection = entry.components?.some(
+      (block: any) => (block as any).news_section,
+    );
 
-  console.log('📄 SLUG PAGE ROUTE RENDERED');
+    if (hasNewsSection) {
+      const newsItems = await getDailyNewsArticles();
+      entry = { ...entry, news: newsItems };
+    }
+  } catch (err) {
+    console.error('❌ Landing page error:', err);
+  }
 
-  // -----------------------------------------------------------
-  // Render
-  // -----------------------------------------------------------
-  if (loading) return null;
-
-  if (!data && !isDataInLiveEdit()) {
+  if (!entry) {
     return <NotFoundComponent />;
   }
 
-  if (!data) return null;
-
   return (
-    <PageWrapper {...data}>
+    <PageWrapper {...entry}>
       <RenderComponents
-        components={data.components}
-        news={data.news ?? []}
+        components={entry.components}
+        featured_articles={entry.featured_articles}
+        news={entry.news ?? []}
+        $={entry.$}
+        isABEnabled={false}
       />
     </PageWrapper>
   );
