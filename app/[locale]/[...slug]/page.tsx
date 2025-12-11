@@ -10,37 +10,18 @@ import {
 } from "@/services/helper";
 import { Page } from "@/types";
 import { deserializeVariantIds } from "@/utils";
-import { cookies } from "next/headers"; // for personalization variants if needed
+import { cookies } from "next/headers";
 
-// ---------------------------------------------
-// TYPES
-// ---------------------------------------------
-type LandingPageWithNews = Page.LandingPage["entry"] & {
-  news?: any[];
-};
+export default async function Page(props: any) {
+  const { locale, slug } = props.params;
 
-// ---------------------------------------------
-// DYNAMIC PAGE (Server Component)
-// ---------------------------------------------
-export default async function Page({
-  params,
-}: {
-  params: { locale: string; slug: string[] };
-}) {
-  const { locale, slug } = params;
-
-  // Build URL from slug segments
   const path = "/" + slug.join("/");
 
-  // personalization variants from cookie (if any)
   const personalizationCookie = cookies().get("cs_personalize_variants")?.value;
   const personalizationSDK = personalizationCookie
     ? { getAppliedVariants: () => deserializeVariantIds(personalizationCookie) }
     : undefined;
 
-  // ---------------------------------------------
-  // Fetch page data from Contentstack
-  // ---------------------------------------------
   const refUids = [
     ...textAndImageReferenceIncludes,
     ...teaserReferenceIncludes,
@@ -49,7 +30,7 @@ export default async function Page({
 
   const jsonRTEPaths = [...textJSONRtePaths];
 
-  let entry: LandingPageWithNews | null = null;
+  let entry: (Page.LandingPage["entry"] & { news?: any[] }) | null = null;
 
   try {
     entry = (await getEntryByUrl<Page.LandingPage["entry"]>(
@@ -59,28 +40,19 @@ export default async function Page({
       refUids,
       jsonRTEPaths,
       personalizationSDK
-    )) as LandingPageWithNews;
+    )) as any;
   } catch (e) {
-    console.error("❌ Failed to fetch entry:", e);
+    console.error("❌ Failed to load page:", e);
   }
 
   if (!entry) return notFound();
 
-  // ---------------------------------------------
-  // Optional: Attach Daily News if block exists
-  // ---------------------------------------------
-  const hasNewsSection = entry.components?.some(
-    (block: any) => block.news_section
-  );
+  const hasNews = entry.components?.some((b: any) => b.news_section);
 
-  if (hasNewsSection) {
-    const newsItems = await getDailyNewsArticles();
-    entry.news = newsItems ?? [];
+  if (hasNews) {
+    entry.news = await getDailyNewsArticles();
   }
 
-  // ---------------------------------------------
-  // RENDER PAGE
-  // ---------------------------------------------
   return (
     <PageWrapper {...entry}>
       <RenderComponents components={entry.components} news={entry.news ?? []} />
