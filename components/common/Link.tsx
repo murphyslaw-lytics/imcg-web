@@ -1,3 +1,5 @@
+"use client";
+
 import { useRouter } from 'next/navigation'
 import { buildLinkUrl } from '@/utils'
 import { LinkComponent as LinkComponentType } from '@/types/components'
