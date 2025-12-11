@@ -1,153 +1,56 @@
 // -----------------------------------------------------------
-// Contentstack SDK Setup
+// Minimal Contentstack Delivery API client (no SDK)
+// Works in Next.js App Router, Edge or Node runtimes.
 // -----------------------------------------------------------
 
-import * as Contentstack from "contentstack";
+const API_KEY = process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY!;
+const DELIVERY_TOKEN = process.env.NEXT_PUBLIC_CONTENTSTACK_DELIVERY_TOKEN!;
+const ENVIRONMENT = process.env.NEXT_PUBLIC_CONTENTSTACK_ENVIRONMENT!;
+const REGION = "eu";
 
-const apiKey = process.env.NEXT_PUBLIC_CONTENTSTACK_API_KEY!;
-const deliveryToken = process.env.NEXT_PUBLIC_CONTENTSTACK_DELIVERY_TOKEN!;
-const environment = process.env.NEXT_PUBLIC_CONTENTSTACK_ENVIRONMENT!;
-
-if (!apiKey || !deliveryToken || !environment) {
-  console.error("❌ Missing Contentstack environment variables");
+if (!API_KEY || !DELIVERY_TOKEN || !ENVIRONMENT) {
+  throw new Error("Missing Contentstack env vars");
 }
 
-export const Stack = Contentstack.Stack({
-  api_key: apiKey,
-  delivery_token: deliveryToken,
-  environment: environment,
-  region: Contentstack.Region.EU, // adjust if needed
-});
+const BASE_URL = `https://cdn-${REGION}.contentstack.io/v3`;
 
-// -----------------------------------------------------------
-// Utility functions
-// -----------------------------------------------------------
+// Generic REST helper
+async function csFetch(path: string) {
+  const url = `${BASE_URL}${path}`;
+  const res = await fetch(url, {
+    headers: {
+      api_key: API_KEY,
+      access_token: DELIVERY_TOKEN,
+    },
+    next: { revalidate: 60 },
+  });
 
-async function runQuery(query: any) {
-  try {
-    const result = await query.find();
-
-    // find() returns `[entries, schema]`
-    const entries = result?.[0] ?? [];
-
-    // Normalize single / multiple responses
-    return Array.isArray(entries) ? entries : [entries];
-  } catch (err) {
-    console.error("Contentstack Query Error:", err);
-    return null;
+  if (!res.ok) {
+    console.error("Contentstack error:", await res.text());
+    throw new Error(`Failed request: ${res.status}`);
   }
+
+  return res.json();
 }
 
 // -----------------------------------------------------------
-// Get entry by URL
+// Get a Single Entry
 // -----------------------------------------------------------
-
-export async function getEntryByUrl(
-  contentTypeUid: string,
-  locale: string,
-  url: string,
-  referenceIncludes: string[] = [],
-  jsonRtePaths: string[] = [],
-  personalizationSDK?: any
-) {
-  try {
-    const query = Stack.contentType(contentTypeUid)
-      .entry()
-      .query()
-      .where("url", url)
-      .language(locale)
-      .includeEmbeddedItems()
-      .includeReference(referenceIncludes);
-
-    const entries = await runQuery(query);
-    if (!entries || !entries.length) return null;
-
-    let entry = entries[0];
-
-    // Apply JSON RTE resolution if needed
-    if (jsonRtePaths.length > 0) {
-      jsonRtePaths.forEach((path: string) => {
-        const parts = path.split(".");
-        let target = entry;
-
-        for (const p of parts) {
-          if (!target[p]) break;
-          target = target[p];
-        }
-      });
-    }
-
-    // Apply personalization if available
-    if (personalizationSDK) {
-      entry = personalizationSDK.applyPersonalization(entry);
-    }
-
-    return entry;
-  } catch (err) {
-    console.error("getEntryByUrl() failed:", err);
-    return null;
-  }
+export async function getEntry(contentType: string, entryUid: string) {
+  return csFetch(`/content_types/${contentType}/entries/${entryUid}?environment=${ENVIRONMENT}`);
 }
 
 // -----------------------------------------------------------
-// Get Daily News Articles (custom content type)
+// Query: Get all entries in a content type
 // -----------------------------------------------------------
-
-export async function getDailyNewsArticles() {
-  try {
-    const query = Stack.contentType("daily_news_article")
-      .entry()
-      .query()
-      .includeEmbeddedItems()
-      .orderByDescending("date");
-
-    const entries = await runQuery(query);
-    return entries ?? [];
-  } catch (err) {
-    console.error("getDailyNewsArticles() failed:", err);
-    return [];
-  }
+export async function getEntries(contentType: string, params: string = "") {
+  return csFetch(`/content_types/${contentType}/entries?environment=${ENVIRONMENT}${params}`);
 }
 
 // -----------------------------------------------------------
-// Article Listing
+// Specific helper: Daily news articles
 // -----------------------------------------------------------
-
-export async function getArticles(locale: string) {
-  try {
-    const query = Stack.contentType("article")
-      .entry()
-      .query()
-      .language(locale)
-      .includeEmbeddedItems()
-      .orderByDescending("date");
-
-    const entries = await runQuery(query);
-    return entries ?? [];
-  } catch (err) {
-    console.error("getArticles() failed:", err);
-    return [];
-  }
-}
-
-// -----------------------------------------------------------
-// Get Single Article by Slug
-// -----------------------------------------------------------
-
-export async function getArticleBySlug(slug: string, locale: string) {
-  try {
-    const query = Stack.contentType("article")
-      .entry()
-      .query()
-      .where("url", "/" + slug)
-      .language(locale)
-      .includeEmbeddedItems()
-      .includeReference(["author"]);
-
-    const entries = await runQuery(query);
-    return entries?.[0] ?? null;
-  } catch (err) {
-    console.error("getArticleBySlug() failed:", err);
-    return null;
-  }
+export async function getDailyNewsArticles(limit = 10) {
+  const json = await getEntries("daily_news_article", `&limit=${limit}&order=-updated_at`);
+  return json?.entries ?? [];
 }
