@@ -1,29 +1,55 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { getEntry } from '@/services/contentstack';
-import { RenderComponents } from '@/components/RenderComponents';
-import PageWrapper from '@/components/PageWrapper';
-import NotFound from '@/components/NotFound';
-import useRouterHook from '@/hooks/useRouterHook';
+import { useEffect, useState } from "react";
+import PageWrapper from "@/components/PageWrapper";
+import NotFound from "@/components/NotFound";
+import { RenderComponents } from "@/components/RenderComponents";
+import { getEntries } from "@/services/contentstack";
+import { usePersonalization } from "@/context";
 
-export default function SlugPage() {
-  const { path, locale } = useRouterHook();
-  const [entry, setEntry] = useState<any>(null);
+export default function ArticleDetail({
+  params,
+}: {
+  params: { locale: string; slug: string[] };
+}) {
+  const locale = params.locale;
+  const path = "/articles/" + params.slug.join("/");
+  const { personalizationSDK } = usePersonalization();
+
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadPage() {
-      const page = await getEntry('page', { url: path });
-      setEntry(page);
-    }
-    loadPage();
-  }, [path]);
+    async function load() {
+      try {
+        const json = await getEntries(
+          "article",
+          `&query={"url":"${path}","locale":"${locale}"}`
+        );
 
-  if (!entry) return <NotFound />;
+        const entry = json.entries?.[0];
+        if (!entry) {
+          setLoading(false);
+          return;
+        }
+
+        setData(entry);
+      } catch (err) {
+        console.error("Article page error:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, [locale, path, personalizationSDK]);
+
+  if (loading) return null;
+  if (!data) return <NotFound />;
 
   return (
-    <PageWrapper {...entry}>
-      <RenderComponents components={entry.page_components ?? []} />
+    <PageWrapper {...data}>
+      <RenderComponents components={data.components} />
     </PageWrapper>
   );
 }

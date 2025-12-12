@@ -1,30 +1,57 @@
-import PageWrapper from '@/components/PageWrapper';
-import { RenderComponents } from '@/components/RenderComponents';
-import { getEntries, getEntry } from '@/services/cs-api';
-import NotFound from '@/components/NotFound';
+"use client";
 
-interface Props {
-  params: {
-    locale: string;
-  };
-}
+import { useEffect, useState } from "react";
+import { RenderComponents } from "@/components/RenderComponents";
+import PageWrapper from "@/components/PageWrapper";
+import NotFound from "@/components/NotFound";
+import { usePersonalization } from "@/context";
+import { getEntries, getDailyNewsArticles } from "@/services/contentstack";
 
-export default async function HomePage({ params }: Props) {
-  const { locale } = params;
+export default function HomePage({ params }: { params: { locale: string } }) {
+  const locale = params.locale;
+  const { personalizationSDK } = usePersonalization();
 
-  // Fetch homepage entry (assumes singleton page = "home")
-  const pages = await getEntries('page');
-  const homePage = pages?.find((p: any) => p.url === '/' || p.locale === locale);
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (!homePage) return <NotFound />;
+  useEffect(() => {
+    async function load() {
+      try {
+        // Query homepage by `url == "/"` in this locale
+        const json = await getEntries(
+          "landing_page",
+          `&query={"url":"/","locale":"${locale}"}`
+        );
+
+        const entry = json.entries?.[0];
+        if (!entry) {
+          setLoading(false);
+          return;
+        }
+
+        // Inject daily news (if block exists)
+        const hasNews = entry.components?.some((c: any) => c.news_section);
+        if (hasNews) {
+          entry.news = await getDailyNewsArticles();
+        }
+
+        setData(entry);
+      } catch (e) {
+        console.error("Home error:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, [locale, personalizationSDK]);
+
+  if (loading) return null;
+  if (!data) return <NotFound />;
 
   return (
-    <PageWrapper locale={locale}>
-      <RenderComponents
-        components={homePage.page_components ?? []}
-        featured_articles={homePage.featured_articles ?? null}
-        news={[]}
-      />
+    <PageWrapper {...data}>
+      <RenderComponents components={data.components} news={data.news ?? []} />
     </PageWrapper>
   );
 }
