@@ -1,41 +1,29 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { getArticleBySlug } from "@/services/contentstack";
-import PageWrapper from "@/components/PageWrapper";
-import RenderComponents from "@/components/RenderComponents";
-import NotFoundComponent from "@/components/NotFound";
+import { useEffect, useState } from 'react';
+import { getEntry } from '@/services/contentstack';
+import { RenderComponents } from '@/components/RenderComponents';
+import PageWrapper from '@/components/PageWrapper';
+import NotFound from '@/components/NotFound';
+import useRouterHook from '@/hooks/useRouterHook';
 
-export default function Page(props: any) {
-  const { params } = props;
-  const { locale, slug } = params;
-
-  const articleSlug = slug.join("/");
-
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = async () => {
-    try {
-      const res = await getArticleBySlug(articleSlug, locale);
-      setData(res ?? null);
-      setLoading(false);
-    } catch (err) {
-      console.error("Article page error:", err);
-      setLoading(false);
-    }
-  };
+export default function SlugPage() {
+  const { path, locale } = useRouterHook();
+  const [entry, setEntry] = useState<any>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [articleSlug, locale]);
+    async function loadPage() {
+      const page = await getEntry('page', { url: path });
+      setEntry(page);
+    }
+    loadPage();
+  }, [path]);
 
-  if (loading) return null;
-  if (!data) return <NotFoundComponent />;
+  if (!entry) return <NotFound />;
 
   return (
-    <PageWrapper {...data}>
-      <RenderComponents components={data.components} news={[]} />
+    <PageWrapper {...entry}>
+      <RenderComponents components={entry.page_components ?? []} />
     </PageWrapper>
   );
 }

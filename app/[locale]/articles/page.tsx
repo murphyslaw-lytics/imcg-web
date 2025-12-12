@@ -1,46 +1,32 @@
-"use client";
+import PageWrapper from '@/components/PageWrapper';
+import { RenderComponents } from '@/components/RenderComponents';
+import { getEntries } from '@/services/cs-api';
+import NotFound from '@/components/NotFound';
 
-import { useEffect, useState } from "react";
-import { getArticles } from "@/services/contentstack";
-import PageWrapper from "@/components/PageWrapper";
-import RenderComponents from "@/components/RenderComponents";
-import NotFoundComponent from "@/components/NotFound";
+interface Props {
+  params: { locale: string };
+}
 
-export default function Page(props: any) {
-  const { params } = props;
+export default async function ArticlesPage({ params }: Props) {
   const { locale } = params;
 
-  const [articles, setArticles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const articles = await getEntries('article');
+  if (!articles?.length) return <NotFound />;
 
-  const fetchData = async () => {
-    try {
-      const res = await getArticles(locale);
-      setArticles(res ?? []);
-      setLoading(false);
-    } catch (err) {
-      console.error("Article listing error:", err);
-      setLoading(false);
-    }
+  // Use "articles" page entry layout if you have one
+  const articlePage = {
+    page_components: [
+      {
+        card_collection: {
+          cards: articles
+        }
+      }
+    ]
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [locale]);
-
-  if (loading) return null;
-  if (!articles.length) return <NotFoundComponent />;
-
   return (
-    <PageWrapper title="Articles">
-      <RenderComponents
-        components={[
-          {
-            article_listing: { items: articles }
-          }
-        ]}
-        news={[]}
-      />
+    <PageWrapper locale={locale}>
+      <RenderComponents components={articlePage.page_components} featured_articles={null} news={[]} />
     </PageWrapper>
   );
 }
